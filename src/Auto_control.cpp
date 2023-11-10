@@ -150,40 +150,58 @@ void turn_p (double degree){
 
  }
 
-/*---------------底盘旋转程序-----------------*\
+/*--------------自动阶段转弯程序-------*\
 函数功能： 控制车体旋转角度
 依    赖： 陀螺仪、底盘电机
 输入变量： Angle:目标角度
 返 回 值： 无
 \*---------------END------------------*/
-void Chassis_Turn(double Angle){
-  double Angle_now = fmod(Inertial1.rotation(vex::rotationUnits::deg),360.0);  //获取当前角度
-  double Turn_Output = 0; //?
-  double Turn_err_now = 0;  //当前误差
-  double Tolerance = 1; //默认误差范围（重要）
+void Chassis_Turn(double Angle) {
+  double Kp = 0.65;  // 比例系数
+  double Ki = 0.0;   // 积分系数
+  double Kd = 0.0;   // 微分系数
 
-  while(1){
-    Angle_now = fmod(Inertial1.rotation(vex::rotationUnits::deg),360.0);
-    Turn_err_now = Angle - Angle_now; //获取目标设为当前误差
-    if(fabs(Turn_err_now) < Tolerance){ //如果误差小于1°，电机停止
-      Chassis_stop(); 
+  double Angle_now = fmod(Inertial1.rotation(vex::rotationUnits::deg), 360.0);
+  double Turn_Output = 0.0;
+  double Turn_err_now = 0.0;
+  double Turn_err_integral = 0.0;
+  double Turn_err_derivative = 0.0;
+  double prev_err = 0.0;
+
+  double Tolerance = 1.0;  // 误差范围
+
+  while (true) {
+    Angle_now = fmod(Inertial1.rotation(vex::rotationUnits::deg), 360.0);
+    Turn_err_now = Angle - Angle_now;
+
+    if (fabs(Turn_err_now) < Tolerance) {
+      Chassis_stop();
       break;
-    }else{
-      double Kp = 0.65;  //引入Kp系数
-      Turn_Output = Kp * Turn_err_now;  //设置输出为目标乘以Kp系数
-      if(Turn_Output > 0){
+    } else {
+      Turn_err_integral += Turn_err_now;
+      Turn_err_derivative = Turn_err_now - prev_err;
+
+      // 计算 PID 输出
+      Turn_Output = Kp * Turn_err_now + Ki * Turn_err_integral + Kd * Turn_err_derivative;
+
+      // 控制输出范围
+      if (Turn_Output > 0) {
         Turn_Output = fabs(Turn_Output);
         left1(-Turn_Output);
         right1(Turn_Output);
-      }else{
+      } else {
         Turn_Output = fabs(Turn_Output);
         left1(Turn_Output);
         right1(-Turn_Output);
       }
-    }
-  }
 
+      prev_err = Turn_err_now;
+    }
+    
+    vex::task::sleep(20);  // 等待20毫秒，避免过于频繁的控制
+  }
 }
+
 
 void Chassis_stop(){
     Motor4.stop(brake);
